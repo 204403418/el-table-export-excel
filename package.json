@@ -1,0 +1,36 @@
+{
+  "name": "el-table-export-excel",
+  "version": "0.1.0",
+  "private": false,
+  "main": "lib",
+  "scripts": {
+    "serve": "vue-cli-service serve",
+    "build": "vue-cli-service build",
+    "lint": "vue-cli-service lint"
+  },
+  "dependencies": {
+    "core-js": "^3.8.3",
+    "element-ui": "^2.15.13",
+    "vue": "^2.6.14",
+    "xlsx": "^0.18.5",
+    "xlsx-js-style": "^1.2.0"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.12.16",
+    "@babel/eslint-parser": "^7.12.16",
+    "@vue/cli-plugin-babel": "~5.0.0",
+    "@vue/cli-plugin-eslint": "~5.0.0",
+    "@vue/cli-service": "~5.0.0",
+    "babel-eslint": "^7.2.3",
+    "eslint": "^8.38.0",
+    "eslint-plugin-vue": "^9.10.0",
+    "sass": "~1.32.13",
+    "sass-loader": "^10.1.1",
+    "vue-template-compiler": "^2.6.14"
+  },
+  "browserslist": [
+    "> 1%",
+    "last 2 versions",
+    "not dead"
+  ]
+}
