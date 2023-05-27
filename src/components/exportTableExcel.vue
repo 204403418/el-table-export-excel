@@ -81,22 +81,33 @@ export default {
     }
   },
   methods: {
-    /**
-     * 获取table对象
-     * @returns {*}
-     */
+    exportExcel() {
+      const tableConfig = this.getTableColumnConfig(this.getTableObject());
+      this.createXlsx(tableConfig, this.dataList);
+      /*
+      //请求数据导出
+      if (this.type === 'request') {
+        request({
+          url: this.url,
+          method: this.method,
+          data: this.data
+        }).then(res => {
+          this.createXlsx(tableConfig, this.getDataList(res.data));
+        });
+      } else {
+        this.createXlsx(tableConfig, this.dataList);
+      }*/
+    },
+    //获取table对象
     getTableObject() {
-      for (let i = 0; i < this.parent.$children.length; i++) {
-        if (this.parent.$children[i].$vnode.componentOptions.tag === this.elTableTag) {
-          return this.parent.$children[i];
+      const parent = this.parent?this.parent:this.$parent;
+      for (let i = 0; i < parent.$children.length; i++) {
+        if (parent.$children[i].$vnode.componentOptions.tag === this.elTableTag) {
+          return parent.$children[i];
         }
       }
     },
-    /**
-     * 获取table列配置
-     * @param tableObject
-     * @returns {*[]}
-     */
+    //获取table列配置
     getTableColumnConfig(tableObject) {
       let leve = 0;
 
@@ -139,21 +150,7 @@ export default {
       getConfig(tableObject.$children, null);
       return headerConfig;
     },
-    exportExcel() {
-      const tableConfig = this.getTableColumnConfig(this.getTableObject());
-      this.createXlsx(tableConfig, this.dataList);
-      /*if (this.type === 'request') {
-        request({
-          url: this.url,
-          method: this.method,
-          data: this.data
-        }).then(res => {
-          this.createXlsx(tableConfig, this.getDataList(res.data));
-        });
-      } else {
-        this.createXlsx(tableConfig, this.dataList);
-      }*/
-    },
+    //创建xlax
     createXlsx(tableConfig, data) {
       //获取标题头
       const header = [];
@@ -164,9 +161,8 @@ export default {
         });
       });
 
-      const wb = xlsx.utils.book_new();
       //获取每列对象
-      const rows = [];
+      const rowObjs = [];
       const getRow = (index) => {
         for (let i = header.length - 1; i > -1; i--) {
           if (tableConfig[i][index]) {
@@ -175,77 +171,66 @@ export default {
         }
       };
       tableConfig[0].forEach((item, index) => {
-        rows.push(getRow(index));
+        rowObjs.push(getRow(index));
       });
 
       //填入数据
-      const sheet = xlsx.utils.aoa_to_sheet([
-        ...header,
-        ...data.map((dataItem) => new Array(header[0].length).fill(null).map((item, index) => {
-          return rows[index].formatter ? rows[index].formatter(dataItem, rows[index].columnConfig) : (
-            (this.formatter && this.formatter[rows[index].prop]) ? this.formatter[rows[index].prop](dataItem[rows[index].prop]) : dataItem[rows[index].prop]
+      const dataList = [...header];
+      data.forEach((dataItem,rowIndex) => {
+        const row = new Array(header[0].length).fill(null).map((item, index) => {
+          if(rowObjs[index].type === 'index') return rowIndex+1;
+          return rowObjs[index].formatter ? rowObjs[index].formatter(dataItem, rowObjs[index].columnConfig) : (
+            (this.formatter && this.formatter[rowObjs[index].prop]) ? this.formatter[rowObjs[index].prop](dataItem[rowObjs[index].prop]) : dataItem[rowObjs[index].prop]
           );
-        }))
-      ]);
+        });
+        dataList.push(row);
+      })
 
-      //多行合并单元格
-      if (header.length > 1) {
-        const merges = [];
-
-        for (let i = 0; i < tableConfig.length - 1; i++) {
-          let start = null;
-          let count = 0;
-          for (let j = 0; j < tableConfig[0].length; j++) {
-            //横向
-            if ((tableConfig[i][j] || tableConfig[0][j] || j === tableConfig[0].length - 1) && start != null) {
-              //合并 r(row)行 c(col)列
-              if (count > 0) merges.push({s: {r: i, c: start}, e: {r: i, c: start + count}});
-              start = null;
-              count = 0;
-            }
-
-            if (!tableConfig[i][j] && start != null) {
-              count++;
-            }
-
-            if (tableConfig[i][j] && !tableConfig[i][j + 1]) {
-              start = j;
-              count = 0;
-            }
-
-            //竖向
-            if (tableConfig[i][j] && !tableConfig[i + 1][j]) {
-              merges.push({s: {r: i, c: j}, e: {r: tableConfig.length - 1, c: j}});
-            }
-          }
-        }
-
-        sheet['!merges'] = merges;
-
-        console.log('merges', merges);
-      }
-
-      //输出文件
+      const wb = xlsx.utils.book_new();
+      const sheet = xlsx.utils.aoa_to_sheet(dataList);
       xlsx.utils.book_append_sheet(wb, sheet, 'sheet1');
+      //基础样式
       this.setExlStyle(wb["Sheets"]["sheet1"], header.length);
       if (header.length > 1) {
+        //表头合并单元格
+        this.mergeHeaderCells(tableConfig,sheet);
         this.addRangeBorder(sheet['!merges'], wb["Sheets"]["sheet1"]);
       }
+      //输出文件
+      const ws = XLSXS.write(wb, {type: "buffer"});
+      this.downloadFile(new Blob([ws]));
+    },
+    //合并表头单元格
+    mergeHeaderCells(tableConfig,sheet){
+      const merges = [];
+      for (let i = 0; i < tableConfig.length - 1; i++) {
+        let start = null;
+        let count = 0;
+        for (let j = 0; j < tableConfig[0].length; j++) {
+          //横向
+          if ((tableConfig[i][j] || tableConfig[0][j] || j === tableConfig[0].length - 1) && start != null) {
+            //合并 r(row)行 c(col)列
+            if (count > 0) merges.push({s: {r: i, c: start}, e: {r: i, c: start + count}});
+            start = null;
+            count = 0;
+          }
 
-      const fileName = this.exportName + '.xlsx';
-      var ws = XLSXS.write(wb, {
-        type: "buffer",
-      });
+          if (!tableConfig[i][j] && start != null) {
+            count++;
+          }
 
-      const url = URL.createObjectURL(new Blob([ws], {type: "application/octet-stream"}));
-      const a = document.createElement('a');
-      a.setAttribute('download', fileName);
-      a.href = url;
-      a.click();
-      URL.revokeObjectURL(url);
-      a.remove();
+          if (tableConfig[i][j] && !tableConfig[i][j + 1]) {
+            start = j;
+            count = 0;
+          }
 
-      //xlsx.writeFile(wb, this.exportName + '.xlsx')
+          //竖向
+          if (tableConfig[i][j] && !tableConfig[i + 1][j]) {
+            merges.push({s: {r: i, c: j}, e: {r: tableConfig.length - 1, c: j}});
+          }
+        }
+      }
+      sheet['!merges'] = merges;
     },
     //添加默认样式
     setExlStyle(data, headerRowCount) {
@@ -328,6 +313,17 @@ export default {
       });
       return ws;
     },
+    //下载文件
+    downloadFile(blob){
+      const fileName = this.exportName + '.xlsx';
+      const url = URL.createObjectURL(blob, {type: "application/octet-stream"});
+      const a = document.createElement('a');
+      a.setAttribute('download', fileName);
+      a.href = url;
+      a.click();
+      URL.revokeObjectURL(url);
+      a.remove();
+    }
   }
 };
 </script>
